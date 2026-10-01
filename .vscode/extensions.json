@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "Prisma.prisma",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "oxc.oxc-vscode",
+    "rangav.vscode-thunder-client",
+    "eamodio.gitlens"
+  ]
+}
