@@ -13,8 +13,8 @@ en cargas de camión.
 ## Instalación
 
 ```bash
-git clone https://github.com/TU_USUARIO/stockflow.git
-cd stockflow
+git clone https://github.com/BarrantesmzDev/StockFlow.git
+cd StockFlow
 
 # Backend
 cd server
