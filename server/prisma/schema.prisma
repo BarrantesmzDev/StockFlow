@@ -1,13 +1,158 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// ============================================================
+// StockFlow — Esquema de la base de datos
+// ============================================================
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = "ts"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------- Enums ----------
+
+enum TipoUbicacion {
+  BODEGA
+  SUCURSAL
+  APARTADOS
+}
+
+enum TipoMovimiento {
+  ENTRADA
+  VENTA
+  DEVOLUCION
+  TRASLADO
+  AJUSTE
+}
+
+enum EstadoDespacho {
+  ABIERTO
+  EMPACADO
+  DESPACHADO
+  CANCELADO
+}
+
+// ---------- Catálogo ----------
+
+model Ubicacion {
+  id     Int           @id @default(autoincrement())
+  nombre String        @unique
+  tipo   TipoUbicacion
+  activa Boolean       @default(true)
+
+  stock              Stock[]
+  movimientosSalida  Movimiento[] @relation("MovimientoOrigen")
+  movimientosEntrada Movimiento[] @relation("MovimientoDestino")
+  despachosSalida    Despacho[]   @relation("DespachoOrigen")
+  despachosEntrada   Despacho[]   @relation("DespachoDestino")
+
+  @@map("ubicaciones")
+}
+
+model Producto {
+  id            Int      @id @default(autoincrement())
+  codigo        String   @unique
+  nombre        String
+  unidad        String   @default("UND")
+  pesoKg        Decimal? @map("peso_kg") @db.Decimal(10, 3)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  stock          Stock[]
+  movimientos    Movimiento[]
+  despachoLineas DespachoLinea[]
+
+  @@map("productos")
+}
+
+model Camion {
+  id          Int     @id @default(autoincrement())
+  nombre      String  @unique
+  placa       String? @unique
+  capacidadKg Decimal @map("capacidad_kg") @db.Decimal(10, 2)
+  activo      Boolean @default(true)
+
+  despachos Despacho[]
+
+  @@map("camiones")
+}
+
+// ---------- Inventario ----------
+
+model Stock {
+  productoId    Int      @map("producto_id")
+  ubicacionId   Int      @map("ubicacion_id")
+  cantidad      Decimal  @default(0) @db.Decimal(12, 2)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  producto  Producto  @relation(fields: [productoId], references: [id])
+  ubicacion Ubicacion @relation(fields: [ubicacionId], references: [id])
+
+  @@id([productoId, ubicacionId])
+  @@map("stock")
+}
+
+model Movimiento {
+  id          Int            @id @default(autoincrement())
+  tipo        TipoMovimiento
+  productoId  Int            @map("producto_id")
+  cantidad    Decimal        @db.Decimal(12, 2)
+  origenId    Int?           @map("origen_id")
+  destinoId   Int?           @map("destino_id")
+  fecha       DateTime       @default(now())
+  documento   String?
+  factura     String?
+  notaCredito String?        @map("nota_credito")
+  cliente     String?
+  notas       String?
+  creadoEn    DateTime       @default(now()) @map("creado_en")
+
+  producto Producto   @relation(fields: [productoId], references: [id])
+  origen   Ubicacion? @relation("MovimientoOrigen", fields: [origenId], references: [id])
+  destino  Ubicacion? @relation("MovimientoDestino", fields: [destinoId], references: [id])
+
+  @@index([productoId, fecha])
+  @@index([tipo, fecha])
+  @@index([documento])
+  @@map("movimientos")
+}
+
+// ---------- Empaque ----------
+
+model Despacho {
+  id        Int            @id @default(autoincrement())
+  documento String         @unique // número TRA
+  origenId  Int            @map("origen_id")
+  destinoId Int?           @map("destino_id")
+  cliente   String?
+  camionId  Int?           @map("camion_id")
+  estado    EstadoDespacho @default(ABIERTO)
+  fecha     DateTime       @default(now())
+  notas     String?
+  creadoEn  DateTime       @default(now()) @map("creado_en")
+
+  origen  Ubicacion       @relation("DespachoOrigen", fields: [origenId], references: [id])
+  destino Ubicacion?      @relation("DespachoDestino", fields: [destinoId], references: [id])
+  camion  Camion?         @relation(fields: [camionId], references: [id])
+  lineas  DespachoLinea[]
+
+  @@map("despachos")
+}
+
+model DespachoLinea {
+  id               Int     @id @default(autoincrement())
+  despachoId       Int     @map("despacho_id")
+  productoId       Int     @map("producto_id")
+  cantidad         Decimal @db.Decimal(12, 2)
+  cantidadEmpacada Decimal @default(0) @map("cantidad_empacada") @db.Decimal(12, 2)
+  pesoUnitarioKg   Decimal @map("peso_unitario_kg") @db.Decimal(10, 3)
+
+  despacho Despacho @relation(fields: [despachoId], references: [id], onDelete: Cascade)
+  producto Producto @relation(fields: [productoId], references: [id])
+
+  @@map("despacho_lineas")
 }
