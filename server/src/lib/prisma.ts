@@ -9,4 +9,17 @@ if (!connectionString) {
 
 const adapter = new PrismaPg({ connectionString });
 
-export const prisma = new PrismaClient({ adapter });
+export const prisma = new PrismaClient({
+  adapter,
+  log: [
+    { emit: "event", level: "query" },
+    { emit: "stdout", level: "warn" },
+  ],
+});
+
+if (process.env.LOG_SQL === "true") {
+  prisma.$on("query", (e) => {
+    const sql = e.query.replaceAll('"public".', "");
+    console.log(`\n[SQL ${e.duration.toFixed(0)} ms] ${sql}\n  params: ${e.params}`);
+  });
+}
