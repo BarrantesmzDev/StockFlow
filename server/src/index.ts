@@ -7,7 +7,11 @@ import { errorHandler } from "./middlewares/error-handler.ts";
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
-app.use(cors());
+// CORS: qué páginas web pueden llamar a esta API desde el navegador.
+// En producción CORS_ORIGIN = URL del frontend (ej. https://stockflow.vercel.app).
+// Sin CORS_ORIGIN (desarrollo) se acepta cualquier origen.
+const origenesPermitidos = process.env.CORS_ORIGIN?.split(",").map((origen) => origen.trim());
+app.use(cors(origenesPermitidos ? { origin: origenesPermitidos } : undefined));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
