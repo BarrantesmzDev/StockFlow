@@ -1,8 +1,14 @@
 import { z } from "../../lib/zod.ts";
 
-// Reglas de cada campo, reutilizadas en crear y actualizar
-const codigo = z.string().trim().min(1, "El código es obligatorio").max(50);
-const nombre = z.string().trim().min(1, "El nombre es obligatorio").max(200);
+// Reglas de cada campo, reutilizadas en crear, actualizar e importar.
+// Código siempre en MAYÚSCULAS y sin espacios dobles: "soda25" y "SODA25" son el mismo producto.
+const codigo = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .transform((valor) => valor.replace(/\s+/g, " "))
+  .pipe(z.string().min(1, "El código es obligatorio").max(50));
+const nombre = z.string().trim().min(1, "El nombre es obligatorio").max(300);
 const unidad = z.string().trim().min(1).max(20).toUpperCase();
 // Decimal(10,3) en la BD → máximo 9,999,999.999. null = sin peso registrado.
 const pesoKg = z.number().positive("El peso debe ser mayor a 0").max(9_999_999.999).nullable();
