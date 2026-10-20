@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAuth } from "@/features/auth/auth-context";
 import { useDebounce } from "@/hooks/use-debounce";
 import { DesactivarProductoDialog } from "./DesactivarProductoDialog";
 import { ProductoFormDialog } from "./ProductoFormDialog";
@@ -39,6 +40,8 @@ export function ProductosPage() {
   const [desactivando, setDesactivando] = useState<Producto | null>(null);
 
   const actualizar = useActualizarProducto();
+  // El rol CONSULTA solo mira: no ve los botones de crear/editar
+  const editable = useAuth().puede("ADMIN", "OPERADOR");
 
   function abrirNuevo() {
     setEditando(null);
@@ -70,10 +73,12 @@ export function ProductosPage() {
             {!isPending && !isError && `${productos.length} en la lista.`}
           </p>
         </div>
-        <Button onClick={abrirNuevo}>
-          <PlusIcon />
-          Nuevo producto
-        </Button>
+        {editable && (
+          <Button onClick={abrirNuevo}>
+            <PlusIcon />
+            Nuevo producto
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -148,6 +153,7 @@ export function ProductosPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
+                    {editable && (
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
@@ -180,6 +186,7 @@ export function ProductosPage() {
                         </Button>
                       )}
                     </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
