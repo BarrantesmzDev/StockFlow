@@ -18,6 +18,8 @@ services:
         sync: false # se escribe a mano en Render (es secreta)
       - key: CORS_ORIGIN
         sync: false # URL del frontend en Vercel
+      - key: ADMIN_EMAIL
+        sync: false # único correo que puede crear el primer administrador
       - key: LOG_SQL
         value: "false"
       - key: PRISMA_HIDE_UPDATE_MESSAGE

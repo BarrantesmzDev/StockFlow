@@ -87,7 +87,7 @@ export async function confirmarProductos(
       const stockNuevo: Prisma.StockCreateManyInput[] = [];
       let apartadosCreados = 0;
 
-      for (const fila of validas) {
+      for (const fila of validas.filter((f) => f.stockSeImporta)) {
         const productoId = idPorCodigo.get(fila.codigo!)!;
         for (const { ubicacionId, cantidad } of fila.stock) {
           const actual = actualDe(productoId, ubicacionId);

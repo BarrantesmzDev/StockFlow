@@ -20,6 +20,7 @@ export type FilaVistaPrevia = {
   unidad: string;
   pesoKg: number | null;
   stock: { ubicacionId: number; cantidad: number }[];
+  stockSeImporta: boolean; // false = producto existente y no se pidió reemplazar su stock
   errores: string[];
   advertencias: string[];
 };
@@ -41,7 +42,7 @@ export function armarVistaPrevia(
   entrada: ImportarProductosInput,
   contexto: ContextoImportacion,
 ): VistaPrevia {
-  const { filaInicio, filas, columnas, stock, sugerirPesos, sugerirUnidades } = entrada;
+  const { filaInicio, filas, columnas, stock, sugerirPesos, sugerirUnidades, reemplazarStock } = entrada;
   const primeraFilaPorCodigo = new Map<string, number>();
   const resultado: FilaVistaPrevia[] = [];
 
@@ -136,6 +137,7 @@ export function armarVistaPrevia(
       unidad,
       pesoKg,
       stock: cantidades,
+      stockSeImporta: accion === "crear" || (accion === "actualizar" && reemplazarStock),
       errores,
       advertencias,
     });

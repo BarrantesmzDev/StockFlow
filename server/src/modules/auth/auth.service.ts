@@ -94,6 +94,12 @@ export async function necesitaConfiguracion(): Promise<boolean> {
 }
 
 export async function configurarInicial({ nombre, email, password }: ConfigurarInput) {
+  // Si el servidor define ADMIN_EMAIL, solo ese correo puede crear el primer administrador.
+  // Evita que un desconocido que encuentre la URL recién publicada se adueñe de la instalación.
+  const permitido = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  if (permitido && email !== permitido) {
+    throw new HttpError(403, "Este correo no está autorizado para configurar StockFlow");
+  }
   const passwordHash = await hashPassword(password);
   // Serializable: si dos personas lo intentan a la vez, solo una crea el administrador
   const usuario = await prisma.$transaction(

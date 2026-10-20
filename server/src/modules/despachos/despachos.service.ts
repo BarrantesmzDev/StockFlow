@@ -46,6 +46,21 @@ function conResumen(despacho: DespachoCompleto) {
   };
 }
 
+// Agrega a cada línea cuánto hay HOY en la ubicación de origen, para avisar antes de empacar
+// que no alcanza el stock (el despacho igual se valida al despachar, dentro de la transacción)
+export async function conDisponible<T extends { origenId: number; lineas: { productoId: number }[] }>(despacho: T) {
+  const stock = await prisma.stock.findMany({
+    where: { ubicacionId: despacho.origenId, productoId: { in: despacho.lineas.map((l) => l.productoId) } },
+  });
+  return {
+    ...despacho,
+    lineas: despacho.lineas.map((linea) => ({
+      ...linea,
+      disponibleOrigen: Number(stock.find((s) => s.productoId === linea.productoId)?.cantidad ?? 0),
+    })),
+  };
+}
+
 // SELECT ... FOR UPDATE: bloquea el despacho hasta que termine la transacción. Si dos personas
 // empacan a la vez, la segunda espera y calcula el peso con los datos ya actualizados.
 async function bloquearDespacho(tx: Tx, id: number): Promise<DespachoCompleto> {

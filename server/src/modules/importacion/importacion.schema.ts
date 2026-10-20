@@ -26,6 +26,9 @@ export const importarProductosSchema = z.strictObject({
     ),
   sugerirPesos: z.boolean().default(true),
   sugerirUnidades: z.boolean().default(true),
+  // Productos que YA existen: por defecto solo se actualiza el catálogo y su stock no se toca.
+  // Reemplazarlo borraría lo registrado desde la importación anterior.
+  reemplazarStock: z.boolean().default(false),
 });
 
 export type ImportarProductosInput = z.infer<typeof importarProductosSchema>;
