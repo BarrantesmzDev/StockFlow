@@ -24,7 +24,7 @@ enum TipoMovimiento {
   ENTRADA
   VENTA
   DEVOLUCION
-  TRASLADO
+  TRASLADO // movimiento interno de mercadería entre ubicaciones propias (documento = TRA)
   AJUSTE
 }
 
@@ -33,6 +33,18 @@ enum EstadoDespacho {
   EMPACADO
   DESPACHADO
   CANCELADO
+}
+
+enum EstadoApartado {
+  ACTIVO
+  ENTREGADO
+  CANCELADO
+}
+
+enum Rol {
+  ADMIN // todo, incluido usuarios e importaciones
+  OPERADOR // movimientos, apartados y empaque
+  CONSULTA // solo lectura
 }
 
 // ---------- Catálogo ----------
@@ -48,6 +60,7 @@ model Ubicacion {
   movimientosEntrada Movimiento[] @relation("MovimientoDestino")
   despachosSalida    Despacho[]   @relation("DespachoOrigen")
   despachosEntrada   Despacho[]   @relation("DespachoDestino")
+  apartados          Apartado[]
 
   @@map("ubicaciones")
 }
@@ -65,6 +78,7 @@ model Producto {
   stock          Stock[]
   movimientos    Movimiento[]
   despachoLineas DespachoLinea[]
+  apartados      Apartado[]
 
   @@map("productos")
 }
@@ -97,28 +111,74 @@ model Stock {
 }
 
 model Movimiento {
-  id          Int            @id @default(autoincrement())
-  tipo        TipoMovimiento
-  productoId  Int            @map("producto_id")
-  cantidad    Decimal        @db.Decimal(12, 2)
-  origenId    Int?           @map("origen_id")
-  destinoId   Int?           @map("destino_id")
-  fecha       DateTime       @default(now())
-  documento   String?
-  factura     String?
-  notaCredito String?        @map("nota_credito")
-  cliente     String?
-  notas       String?
-  creadoEn    DateTime       @default(now()) @map("creado_en")
+  id             Int            @id @default(autoincrement())
+  tipo           TipoMovimiento
+  productoId     Int            @map("producto_id")
+  cantidad       Decimal        @db.Decimal(12, 2)
+  origenId       Int?           @map("origen_id")
+  destinoId      Int?           @map("destino_id")
+  fecha          DateTime       @default(now())
+  documento      String? // TRA en traslados; documento de respaldo en ajustes
+  factura        String?
+  notaCredito    String?        @map("nota_credito")
+  cliente        String?
+  serie          String? // número de serie de la unidad (equipos)
+  codigoGarantia String?        @map("codigo_garantia") // EP: código de garantía
+  notas          String?
+  usuarioId      Int?           @map("usuario_id")
+  apartadoId     Int?           @map("apartado_id")
+  despachoId     Int?           @map("despacho_id")
+  creadoEn       DateTime       @default(now()) @map("creado_en")
 
   producto Producto   @relation(fields: [productoId], references: [id])
   origen   Ubicacion? @relation("MovimientoOrigen", fields: [origenId], references: [id])
   destino  Ubicacion? @relation("MovimientoDestino", fields: [destinoId], references: [id])
+  usuario  Usuario?   @relation(fields: [usuarioId], references: [id])
+  apartado Apartado?  @relation(fields: [apartadoId], references: [id])
+  despacho Despacho?  @relation(fields: [despachoId], references: [id])
 
   @@index([productoId, fecha])
   @@index([tipo, fecha])
   @@index([documento])
+  @@index([serie])
   @@map("movimientos")
+}
+
+// Copia de la última exportación de SistemaCR, para conciliar contra el stock real
+model SistemaCr {
+  codigo      String   @id
+  nombre      String?
+  cantidad    Decimal  @db.Decimal(12, 2)
+  importadoEn DateTime @default(now()) @map("importado_en")
+
+  @@map("sistema_cr")
+}
+
+// ---------- Apartados ----------
+
+// Mercadería reservada para un cliente. Mientras está ACTIVO, el stock vive en la ubicación
+// de tipo APARTADOS. Entregar = venta desde Apartados. Cancelar = vuelve a su ubicación de origen.
+model Apartado {
+  id         Int            @id @default(autoincrement())
+  cliente    String
+  telefono   String?
+  productoId Int            @map("producto_id")
+  cantidad   Decimal        @db.Decimal(12, 2)
+  origenId   Int            @map("origen_id")
+  estado     EstadoApartado @default(ACTIVO)
+  factura    String?
+  notas      String?
+  usuarioId  Int?           @map("usuario_id")
+  creadoEn   DateTime       @default(now()) @map("creado_en")
+  cerradoEn  DateTime?      @map("cerrado_en")
+
+  producto    Producto     @relation(fields: [productoId], references: [id])
+  origen      Ubicacion    @relation(fields: [origenId], references: [id])
+  usuario     Usuario?     @relation(fields: [usuarioId], references: [id])
+  movimientos Movimiento[]
+
+  @@index([estado, creadoEn])
+  @@map("apartados")
 }
 
 // ---------- Empaque ----------
@@ -133,12 +193,15 @@ model Despacho {
   estado    EstadoDespacho @default(ABIERTO)
   fecha     DateTime       @default(now())
   notas     String?
+  usuarioId Int?           @map("usuario_id")
   creadoEn  DateTime       @default(now()) @map("creado_en")
 
-  origen  Ubicacion       @relation("DespachoOrigen", fields: [origenId], references: [id])
-  destino Ubicacion?      @relation("DespachoDestino", fields: [destinoId], references: [id])
-  camion  Camion?         @relation(fields: [camionId], references: [id])
-  lineas  DespachoLinea[]
+  origen      Ubicacion       @relation("DespachoOrigen", fields: [origenId], references: [id])
+  destino     Ubicacion?      @relation("DespachoDestino", fields: [destinoId], references: [id])
+  camion      Camion?         @relation(fields: [camionId], references: [id])
+  usuario     Usuario?        @relation(fields: [usuarioId], references: [id])
+  lineas      DespachoLinea[]
+  movimientos Movimiento[]
 
   @@map("despachos")
 }
@@ -154,5 +217,39 @@ model DespachoLinea {
   despacho Despacho @relation(fields: [despachoId], references: [id], onDelete: Cascade)
   producto Producto @relation(fields: [productoId], references: [id])
 
+  @@unique([despachoId, productoId])
   @@map("despacho_lineas")
+}
+
+// ---------- Usuarios ----------
+
+model Usuario {
+  id             Int       @id @default(autoincrement())
+  nombre         String
+  email          String    @unique
+  passwordHash   String    @map("password_hash")
+  rol            Rol       @default(OPERADOR)
+  activo         Boolean   @default(true)
+  creadoEn       DateTime  @default(now()) @map("creado_en")
+  ultimoAccesoEn DateTime? @map("ultimo_acceso_en")
+
+  sesiones    Sesion[]
+  movimientos Movimiento[]
+  apartados   Apartado[]
+  despachos   Despacho[]
+
+  @@map("usuarios")
+}
+
+// Sesión iniciada. Se guarda solo el hash del token: si alguien lee la tabla, no puede usarlo.
+model Sesion {
+  id        String   @id // SHA-256 del token que tiene el navegador
+  usuarioId Int      @map("usuario_id")
+  expiraEn  DateTime @map("expira_en")
+  creadoEn  DateTime @default(now()) @map("creado_en")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("sesiones")
 }

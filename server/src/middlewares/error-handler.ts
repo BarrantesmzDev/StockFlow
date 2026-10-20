@@ -1,5 +1,6 @@
 import type { ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
+import { Prisma } from "../generated/prisma/client.ts";
 import { HttpError } from "../lib/http-error.ts";
 
 // Middleware de errores: Express 5 manda aquí cualquier error lanzado en una ruta
@@ -25,6 +26,20 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
       })),
     });
     return;
+  }
+
+  // Errores conocidos de la base de datos que no se manejaron en el service
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    const mensajes: Record<string, [number, string]> = {
+      P2003: [409, "El registro hace referencia a algo que no existe o está en uso"],
+      P2034: [409, "Otra persona modificó lo mismo al mismo tiempo. Intenta de nuevo."],
+      P2028: [503, "La operación tardó demasiado. Intenta de nuevo."],
+    };
+    const conocido = mensajes[err.code];
+    if (conocido) {
+      res.status(conocido[0]).json({ error: conocido[1] });
+      return;
+    }
   }
 
   // Body con JSON mal escrito (lo detecta express.json())

@@ -33,6 +33,52 @@ export async function leerExcel(contenido: Buffer): Promise<Hoja[]> {
     });
 }
 
+// Lee un CSV como una sola hoja. Detecta si el separador es "," o ";" (Excel en español usa ";").
+// Respeta comillas: "Tubería 1"", flexible" es un solo campo.
+export function leerCsv(contenido: Buffer): Hoja[] {
+  const texto = contenido.toString("utf8").replace(/^﻿/, ""); // quita el BOM de Excel
+  const primeraLinea = texto.slice(0, texto.indexOf("\n") >>> 0);
+  const separador = (primeraLinea.match(/;/g)?.length ?? 0) > (primeraLinea.match(/,/g)?.length ?? 0) ? ";" : ",";
+
+  const filas: Celda[][] = [];
+  let fila: Celda[] = [];
+  let campo = "";
+  let entreComillas = false;
+  const cerrarCampo = () => {
+    const valor = campo.trim();
+    fila.push(valor === "" ? null : valor);
+    campo = "";
+  };
+  for (let i = 0; i < texto.length && filas.length < MAX_FILAS; i++) {
+    const c = texto[i];
+    if (entreComillas) {
+      if (c === '"' && texto[i + 1] === '"') {
+        campo += '"';
+        i++;
+      } else if (c === '"') entreComillas = false;
+      else campo += c;
+    } else if (c === '"') entreComillas = true;
+    else if (c === separador) cerrarCampo();
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && texto[i + 1] === "\n") i++;
+      cerrarCampo();
+      filas.push(fila.slice(0, MAX_COLUMNAS));
+      fila = [];
+    } else campo += c;
+  }
+  if (campo !== "" || fila.length > 0) {
+    cerrarCampo();
+    filas.push(fila.slice(0, MAX_COLUMNAS));
+  }
+  return [{ nombre: "CSV", filas }];
+}
+
+// .xlsx es un ZIP: empieza con los bytes "PK". Si no, se intenta como CSV.
+export async function leerArchivo(contenido: Buffer): Promise<Hoja[]> {
+  const esZip = contenido.length > 4 && contenido[0] === 0x50 && contenido[1] === 0x4b;
+  return esZip ? leerExcel(contenido) : leerCsv(contenido);
+}
+
 function aCelda(valor: ExcelJS.CellValue): Celda {
   if (valor === null || valor === undefined) return null;
   if (valor instanceof Date) return valor.toISOString().slice(0, 10);
